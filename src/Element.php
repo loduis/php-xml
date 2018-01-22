@@ -1,6 +1,6 @@
 <?php
 
-namespace Xml;
+namespace XML;
 
 use DOMDocument;
 use LengthException;
@@ -9,6 +9,8 @@ use InvalidArgumentException;
 
 class Element extends SimpleXMLElement
 {
+    const XMLNS = 'http://www.w3.org/2000/xmlns/';
+
     public static function create($element, array $attributes = [], callable $callback = null)
     {
         $xml = static::getXML($element, $attributes);
@@ -21,6 +23,10 @@ class Element extends SimpleXMLElement
 
     public function add($element, array $attributes = [], callable $callback = null)
     {
+        if ($element instanceof SimpleXMLElement) {
+            return $this->fromElement($element);
+        }
+
         $namespace = static::resolveNamespace($element, $attributes);
 
         return $this->createChild(
@@ -32,11 +38,6 @@ class Element extends SimpleXMLElement
         );
     }
 
-    public function __toString()
-    {
-        return $this->asXML();
-    }
-
     public function toElement()
     {
         return $this->toDocument()->documentElement;
@@ -45,11 +46,10 @@ class Element extends SimpleXMLElement
     public function toDocument()
     {
         $dom = new DOMDocument('1.0');
-        $source = (string) $this;
         $source = str_replace(
-            'xmlns:xmlns="http://www.w3.org/2000/xmlns/"',
+            'xmlns:xmlns="' . static::XMLNS .'"',
             '',
-            (string) $source
+            $this->asXML()
         );
         $dom->loadXML($source, LIBXML_NSCLEAN);
 
@@ -65,9 +65,6 @@ class Element extends SimpleXMLElement
         return $doc->saveXML() . PHP_EOL;
     }
 
-    /**
-     * $args // $value attributes $namespace
-     */
     public function __call($element, array $args)
     {
         $value = null;
@@ -79,7 +76,7 @@ class Element extends SimpleXMLElement
             if ($count > 3) {
                 throw new LengthException('Max number of parameters: ' . $count);
             }
-            $method = "resolveMethodSignature{$count}Parameters";
+            $method = "resolveMethodWith{$count}Parameters";
             $this->$method(
                 $args,
                 $value,
@@ -98,6 +95,23 @@ class Element extends SimpleXMLElement
         );
     }
 
+    protected function fromElement(SimpleXMLElement $element)
+    {
+        if (strlen(trim((string) $element))==0) {
+            $xml = $this->addChild($element->getName());
+            foreach($element->children() as $child) {
+                $xml->addFromElement($child);
+            }
+        } else {
+            $xml = $this->addChild($element->getName(), (string) $element);
+        }
+        foreach($element->attributes() as $name => $value) {
+            $xml->addAttribute($name, $value);
+        }
+
+        return $xml;
+    }
+
     protected static function getXML($element, $attributes)
     {
         $source = "<$element";
@@ -106,9 +120,8 @@ class Element extends SimpleXMLElement
                 $source .= ' ' . $key . '="' . $value . '"';
             });
         }
-        $source .= "></$element>";
 
-        return $source;
+        return $source . "></$element>";
     }
 
     protected static function resolveNamespace($element, & $attributes)
@@ -137,7 +150,7 @@ class Element extends SimpleXMLElement
     {
         $element = $this->addChild($element, $value, $namespace);
         foreach ($attributes as $key => $value) {
-            $namespace = strpos($key, 'xmlns:') !== false ? 'http://www.w3.org/2000/xmlns/' : null;
+            $namespace = strpos($key, 'xmlns:') !== false ?  static::XMLNS : null;
             $element->addAttribute($key, $value, $namespace);
         }
         if (is_callable($callback)) {
@@ -147,7 +160,7 @@ class Element extends SimpleXMLElement
         return $element;
     }
 
-    protected function resolveMethodSignature1Parameters(
+    protected function resolveMethodWith1Parameters(
         $args,
         & $value,
         & $namespace,
@@ -166,7 +179,7 @@ class Element extends SimpleXMLElement
     }
 
 
-    protected function resolveMethodSignature2Parameters(
+    protected function resolveMethodWith2Parameters(
         $args,
         & $value,
         & $namespace,
@@ -187,7 +200,7 @@ class Element extends SimpleXMLElement
                 $namespace = $param1;
                 return $callback = $param2;
             }
-            throw new InvalidArgumentException('This is not valid arguments conbination');
+            $this->throwInvalidArgument();
         }
 
         if (is_array($param1)) {
@@ -200,10 +213,10 @@ class Element extends SimpleXMLElement
                 return $callback = $param2;
             }
         }
-        throw new InvalidArgumentException('This is not valid arguments conbination');
+        $this->throwInvalidArgument();
     }
 
-    protected function resolveMethodSignature3Parameters(
+    protected function resolveMethodWith3Parameters(
         $args,
         & $value,
         & $namespace,
@@ -216,6 +229,13 @@ class Element extends SimpleXMLElement
             $attributes = $param2;
             $callback = $param3;
         }
-        throw new InvalidArgumentException('This is not valid arguments conbination');
+        $this->throwInvalidArgument();
+    }
+
+    protected function throwInvalidArgument()
+    {
+        throw new InvalidArgumentException(
+            'This is not valid arguments conbination'
+        );
     }
 }

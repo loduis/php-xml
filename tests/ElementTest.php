@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Xml\Tests;
+namespace XML\Tests;
 
-use Xml\Element;
+use XML\Element;
+use SimpleXMLElement;
 
 class ElementTest extends TestCase
 {
@@ -20,6 +21,8 @@ class ElementTest extends TestCase
 
     public function testShouldCreateColombiaSign()
     {
+        $sig = new SimpleXMLElement('<Signature/>', 0, false, 'ds', true);
+
         $signature = Element::create('ds:Signature', [
             'Id' => 'xmldsig-88fbfc45-3be2-4c4a-83ac-0796e1bad4c5',
             'xmlns:ds' => static::XML_DSIG
@@ -175,7 +178,6 @@ class ElementTest extends TestCase
                     ->ClaimedRoles()
                     ->ClaimedRole('supplier');
             });
-
         });
 
         $this->assertMatchesXmlSnapshot($signature->pretty());

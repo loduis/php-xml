@@ -1,5 +1,5 @@
 {
-    "name": "loduis/php-xml",
+    "name": "loduis/xml-element",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -11,12 +11,12 @@
     "minimum-stability": "dev",
     "autoload": {
         "psr-4": {
-            "Xml\\": "src/"
+            "XML\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Xml\\Tests\\": "tests/"
+            "XML\\Tests\\": "tests/"
         }
     },
     "require": {},

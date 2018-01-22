@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Xml\Tests;
+namespace XML\Tests;
 
 use Spatie\Snapshots\MatchesSnapshots;
 
