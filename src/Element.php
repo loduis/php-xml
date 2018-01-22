@@ -117,7 +117,9 @@ class Element extends SimpleXMLElement
         $source = "<$element";
         if ($attributes) {
             array_walk($attributes, function ($value, $key) use (& $source) {
-                $source .= ' ' . $key . '="' . $value . '"';
+                if ($value !== null) {
+                    $source .= ' ' . $key . '="' . $value . '"';
+                }
             });
         }
 
@@ -150,8 +152,10 @@ class Element extends SimpleXMLElement
     {
         $element = $this->addChild($element, $value, $namespace);
         foreach ($attributes as $key => $value) {
-            $namespace = strpos($key, 'xmlns:') !== false ?  static::XMLNS : null;
-            $element->addAttribute($key, $value, $namespace);
+            if ($value !== null) {
+                $namespace = strpos($key, 'xmlns:') !== false ?  static::XMLNS : null;
+                $element->addAttribute($key, $value, $namespace);
+            }
         }
         if (is_callable($callback)) {
             $callback($element);
