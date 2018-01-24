@@ -40,7 +40,12 @@ class Element extends SimpleXMLElement
 
     public function toElement()
     {
-        return $this->toDocument()->documentElement;
+        $dom = new DOMDocument('1.0');
+        $element = dom_import_simplexml($this);
+        $element = $dom->importNode($element, true);
+        $element = $dom->appendChild($element);
+
+        return $element;
     }
 
     public function toDocument()
@@ -54,6 +59,11 @@ class Element extends SimpleXMLElement
         $dom->loadXML($source, LIBXML_NSCLEAN);
 
         return $dom;
+    }
+
+    public function setValue($value)
+    {
+        $this[0] = $value;
     }
 
     public function pretty()
@@ -100,7 +110,7 @@ class Element extends SimpleXMLElement
         if (strlen(trim((string) $element))==0) {
             $xml = $this->addChild($element->getName());
             foreach($element->children() as $child) {
-                $xml->addFromElement($child);
+                $xml->fromElement($child);
             }
         } else {
             $xml = $this->addChild($element->getName(), (string) $element);
@@ -148,9 +158,9 @@ class Element extends SimpleXMLElement
         return $part;
     }
 
-    protected function createChild($element, $value, $namespace, $attributes, $callback)
+    protected function createChild($name, $value, $namespace, $attributes, $callback)
     {
-        $element = $this->addChild($element, $value, $namespace);
+        $element = $this->addChild($name, $value, $namespace);
         foreach ($attributes as $key => $value) {
             if ($value !== null) {
                 $namespace = strpos($key, 'xmlns:') !== false ?  static::XMLNS : null;
