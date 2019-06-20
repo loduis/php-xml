@@ -11,6 +11,8 @@ class Element extends SimpleXMLElement
 {
     const XMLNS = 'http://www.w3.org/2000/xmlns/';
 
+    private $_namespaces = [];
+
     public static function create($element, array $attributes = [], callable $callback = null)
     {
         $xml = static::getXML($element, $attributes);
@@ -18,20 +20,33 @@ class Element extends SimpleXMLElement
         if (is_callable($callback)) {
             $callback($element);
         }
+        $element->useNamespace();
         return $element;
     }
 
-    public function add($element, array $attributes = [], callable $callback = null)
+    public function add($element, $attributes = [], $callback = null)
     {
+        $value = null;
+        if (is_scalar($attributes)) {
+            $value = $attributes;
+            $attributes = [];
+        } elseif (is_callable($attributes)) {
+            $callback = $attributes;
+            $attributes = [];
+        } else if (is_scalar($callback)) {
+            $value = $callback;
+            $callback = null;
+        }
+
         if ($element instanceof SimpleXMLElement) {
             return $this->fromElement($element);
         }
 
-        $namespace = static::resolveNamespace($element, $attributes);
+        $namespace = $this->resolveNamespace($element, $attributes);
 
         return $this->createChild(
             $element,
-            null,
+            $value,
             $namespace,
             $attributes,
             $callback
@@ -75,6 +90,22 @@ class Element extends SimpleXMLElement
         return $doc->saveXML() . PHP_EOL;
     }
 
+    public function useNamespace ($element = null, $value = null)
+    {
+        static $namespaces = [];
+        if ($element !== null && $value !== null) {
+            return $namespaces[$element] = $value;
+        }
+        if ($element === null) {
+            $element = $this;
+        }
+        if ($element instanceof SimpleXMLElement) {
+            return $namespaces = array_merge($namespaces, (array) $element->getDocNamespaces(true));
+        }
+
+        return $namespaces[$element] ?? null;
+    }
+
     public function __call($element, array $args)
     {
         $value = null;
@@ -103,6 +134,11 @@ class Element extends SimpleXMLElement
             $attributes,
             $callback
         );
+    }
+
+    public function __toString()
+    {
+        return $this->toDocument()->saveXML();
     }
 
     protected function fromElement(SimpleXMLElement $element)
@@ -136,14 +172,20 @@ class Element extends SimpleXMLElement
         return $source . "></$element>";
     }
 
-    protected static function resolveNamespace($element, & $attributes)
+    protected function resolveNamespace($element, & $attributes)
     {
         $prefix = static::getPart($element, 0);
         foreach ($attributes as $key => $value) {
             if ($prefix && $prefix == static::getPart($key, 1)) {
                 unset($attributes[$key]);
+                if ($this->isXmlns($key)) {
+                    $this->useNamespace($prefix, $value);
+                }
                 return $value;
             }
+        }
+        if ($prefix) {
+            return $this->useNamespace($prefix);
         }
     }
 
@@ -163,8 +205,16 @@ class Element extends SimpleXMLElement
         $element = $this->addChild($name, $value, $namespace);
         foreach ($attributes as $key => $value) {
             if ($value !== null) {
-                $namespace = strpos($key, 'xmlns:') !== false ?  static::XMLNS : null;
+                $namespace = null;
+                if ($isXmlns = $this->isXmlns($key)) {
+                    $namespace = static::XMLNS;
+                } elseif ($prefix = static::getPart($key, 0)) {
+                    $namespace = $this->useNamespace($prefix);
+                }
                 $element->addAttribute($key, $value, $namespace);
+                if ($isXmlns) {
+                    $this->useNamespace(static::getPart($key, 1), $value);
+                }
             }
         }
         if (is_callable($callback)) {
@@ -251,5 +301,10 @@ class Element extends SimpleXMLElement
         throw new InvalidArgumentException(
             'This is not valid arguments conbination'
         );
+    }
+
+    protected function isXmlns($value)
+    {
+        return strpos($value, 'xmlns:') !== false;
     }
 }
