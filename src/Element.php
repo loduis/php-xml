@@ -5,6 +5,7 @@ namespace XML;
 use DOMDocument;
 use LengthException;
 use SimpleXMLElement;
+use XML\Element\Cache;
 use InvalidArgumentException;
 
 class Element extends SimpleXMLElement
@@ -20,7 +21,7 @@ class Element extends SimpleXMLElement
         if (is_callable($callback)) {
             $callback($element);
         }
-        $element->useNamespace();
+        Cache::create($element);
         return $element;
     }
 
@@ -66,15 +67,12 @@ class Element extends SimpleXMLElement
     public function toDocument()
     {
         $dom = new DOMDocument('1.0');
-        $source = str_replace(
-            'xmlns:xmlns="' . static::XMLNS .'"',
-            '',
-            $this->asXML()
-        );
+        $source = static::stripXmlns($this->asXML());
         $dom->loadXML($source, LIBXML_NSCLEAN);
 
         return $dom;
     }
+
 
     public function setValue($value)
     {
@@ -90,20 +88,9 @@ class Element extends SimpleXMLElement
         return $doc->saveXML() . PHP_EOL;
     }
 
-    public function useNamespace ($element = null, $value = null)
+    public function c14n()
     {
-        static $namespaces = [];
-        if ($element !== null && $value !== null) {
-            return $namespaces[$element] = $value;
-        }
-        if ($element === null) {
-            $element = $this;
-        }
-        if ($element instanceof SimpleXMLElement) {
-            return $namespaces = array_merge($namespaces, (array) $element->getDocNamespaces(true));
-        }
-
-        return $namespaces[$element] ?? null;
+        return $this->toElement()->C14N();
     }
 
     public function __call($element, array $args)
@@ -174,22 +161,22 @@ class Element extends SimpleXMLElement
 
     protected function resolveNamespace($element, & $attributes)
     {
-        $prefix = static::getPart($element, 0);
+        $prefix = static::getPart($element);
         foreach ($attributes as $key => $value) {
             if ($prefix && $prefix == static::getPart($key, 1)) {
                 unset($attributes[$key]);
                 if ($this->isXmlns($key)) {
-                    $this->useNamespace($prefix, $value);
+                    Cache::set($this, $prefix, $value);
                 }
                 return $value;
             }
         }
         if ($prefix) {
-            return $this->useNamespace($prefix);
+            return Cache::get($this, $prefix);
         }
     }
 
-    protected static function getPart($element, $position)
+    protected static function getPart($element, $position = 0)
     {
         $part = null;
         if (strpos($element, ':') !== false) {
@@ -208,12 +195,12 @@ class Element extends SimpleXMLElement
                 $namespace = null;
                 if ($isXmlns = $this->isXmlns($key)) {
                     $namespace = static::XMLNS;
-                } elseif ($prefix = static::getPart($key, 0)) {
-                    $namespace = $this->useNamespace($prefix);
+                } elseif ($prefix = static::getPart($key)) {
+                    $namespace = Cache::get($this, $prefix);
                 }
                 $element->addAttribute($key, $value, $namespace);
-                if ($isXmlns) {
-                    $this->useNamespace(static::getPart($key, 1), $value);
+                if ($this->isXmlns($key)) {
+                    Cache::set($this, static::getPart($key, 1), $value);
                 }
             }
         }
@@ -241,7 +228,6 @@ class Element extends SimpleXMLElement
 
         $value = $param1;
     }
-
 
     protected function resolveMethodWith2Parameters(
         $args,
@@ -305,6 +291,15 @@ class Element extends SimpleXMLElement
 
     protected function isXmlns($value)
     {
-        return strpos($value, 'xmlns:') !== false;
+        return stripos($value, 'xmlns:') === 0;
+    }
+
+    private static function stripXmlns(string $string)
+    {
+        return str_replace(
+            'xmlns:xmlns="' . static::XMLNS .'" ',
+            '',
+            $string
+        );
     }
 }
