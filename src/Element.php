@@ -5,14 +5,11 @@ namespace XML;
 use DOMDocument;
 use LengthException;
 use SimpleXMLElement;
-use XML\Element\Cache;
 use InvalidArgumentException;
 
 class Element extends SimpleXMLElement
 {
     const XMLNS = 'http://www.w3.org/2000/xmlns/';
-
-    private $_namespaces = [];
 
     public static function create($element, array $attributes = [], callable $callback = null)
     {
@@ -21,7 +18,7 @@ class Element extends SimpleXMLElement
         if (is_callable($callback)) {
             $callback($element);
         }
-        Cache::create($element);
+        $element->cache();
         return $element;
     }
 
@@ -73,6 +70,14 @@ class Element extends SimpleXMLElement
         return $dom;
     }
 
+    private static function stripXmlns(string $string)
+    {
+        return str_replace(
+            'xmlns:xmlns="' . static::XMLNS .'" ',
+            '',
+            $string
+        );
+    }
 
     public function setValue($value)
     {
@@ -86,6 +91,22 @@ class Element extends SimpleXMLElement
         $doc->formatOutput = true;
 
         return $doc->saveXML() . PHP_EOL;
+    }
+
+    public function cache($prefix = null, $value = null)
+    {
+        static $cache = [];
+        if ($prefix !== null && $value !== null) {
+            return $cache[$prefix] = $value;
+        }
+        if ($prefix === null) {
+            $prefix = $this;
+        }
+        if ($prefix instanceof SimpleXMLElement) {
+            return $cache = array_merge($cache, (array) $prefix->getDocNamespaces(true));
+        }
+
+        return $cache[$prefix] ?? null;
     }
 
     public function c14n()
@@ -166,13 +187,13 @@ class Element extends SimpleXMLElement
             if ($prefix && $prefix == static::getPart($key, 1)) {
                 unset($attributes[$key]);
                 if ($this->isXmlns($key)) {
-                    Cache::set($this, $prefix, $value);
+                    $this->cache($prefix, $value);
                 }
                 return $value;
             }
         }
         if ($prefix) {
-            return Cache::get($this, $prefix);
+            return $this->cache($prefix);
         }
     }
 
@@ -196,11 +217,11 @@ class Element extends SimpleXMLElement
                 if ($isXmlns = $this->isXmlns($key)) {
                     $namespace = static::XMLNS;
                 } elseif ($prefix = static::getPart($key)) {
-                    $namespace = Cache::get($this, $prefix);
+                    $namespace = $this->cache($prefix);
                 }
                 $element->addAttribute($key, $value, $namespace);
                 if ($this->isXmlns($key)) {
-                    Cache::set($this, static::getPart($key, 1), $value);
+                    $this->cache(static::getPart($key, 1), $value);
                 }
             }
         }
@@ -292,14 +313,5 @@ class Element extends SimpleXMLElement
     protected function isXmlns($value)
     {
         return stripos($value, 'xmlns:') === 0;
-    }
-
-    private static function stripXmlns(string $string)
-    {
-        return str_replace(
-            'xmlns:xmlns="' . static::XMLNS .'" ',
-            '',
-            $string
-        );
     }
 }
