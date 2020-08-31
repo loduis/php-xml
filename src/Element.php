@@ -70,7 +70,7 @@ class Element extends SimpleXMLElement
         return $dom;
     }
 
-    private static function stripXmlns(string $string)
+    public static function stripXmlns(string $string)
     {
         return str_replace(
             'xmlns:xmlns="' . static::XMLNS .'" ',
